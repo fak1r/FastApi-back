@@ -1,0 +1,117 @@
+from fastapi import FastAPI, Depends, HTTPException, Form
+from fastapi.security import OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from database import SessionLocal, init_db
+import models
+import auth
+import schemas
+
+app = FastAPI()
+
+init_db()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+# Разрешаем запросы с фронтенда (Nuxt 3)
+app.add_middleware(
+  CORSMiddleware,
+  allow_origins=["http://localhost:3000"],
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
+)
+
+def get_db():
+  db = SessionLocal()
+  try:
+    yield db
+  finally:
+    db.close()
+
+@app.get("/ping_db")
+def ping_db(db: Session = Depends(get_db)):
+  return {"message": "Database connection successful!"}
+
+@app.post("/register")
+def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):  # <-- Принимаем JSON-данные
+  # Проверяем, есть ли уже такой email в БД
+  existing_user = db.query(models.User).filter(models.User.email == request.email).first()
+  if existing_user:
+      raise HTTPException(status_code=400, detail="Email already registered")
+
+  # Создаём нового пользователя
+  hashed_password = auth.hash_password(request.password)
+  new_user = models.User(name=request.name, email=request.email, hashed_password=hashed_password)
+
+  db.add(new_user)
+  db.commit()
+  db.refresh(new_user)
+  return {"message": "User registered successfully", "user": {"id": new_user.id, "email": new_user.email}}
+
+@app.post("/login", response_model=schemas.TokenResponse)
+def login(request: schemas.LoginRequest, db: Session = Depends(get_db)):
+  user = db.query(models.User).filter(models.User.email == request.email).first()
+  if not user or not auth.verify_password(request.password, user.hashed_password):
+    raise HTTPException(status_code=400, detail="Invalid email or password")
+
+  # Создаём токены
+  access_token = auth.create_access_token({"sub": user.email})
+  refresh_token = auth.create_refresh_token({"sub": user.email})
+
+  # Сохраняем refresh_token в БД
+  user.refresh_token = refresh_token
+  db.commit()
+
+  return {
+    "access_token": access_token,
+    "refresh_token": refresh_token,
+    "token_type": "bearer"
+  }
+
+@app.post("/refresh", response_model=schemas.TokenResponse)
+def refresh(refresh_token: str = Form(...), db: Session = Depends(get_db)):
+  # Декодируем refresh-токен
+  payload = auth.verify_token(refresh_token, auth.REFRESH_SECRET_KEY)
+  if not payload:
+    raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+  # Ищем пользователя в БД
+  user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
+  if not user or user.refresh_token != refresh_token:
+    raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+  # Создаём новые токены
+  new_access_token = auth.create_access_token({"sub": payload["sub"]})
+  new_refresh_token = auth.create_refresh_token({"sub": payload["sub"]})
+
+  # Обновляем refresh_token в БД
+  user.refresh_token = new_refresh_token
+  db.commit()
+
+  return {"access_token": new_access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
+
+@app.post("/logout")
+def logout(refresh_token: str = Form(...), db: Session = Depends(get_db)):
+  # Декодируем refresh-токен
+  payload = auth.verify_token(refresh_token, auth.REFRESH_SECRET_KEY)
+  if not payload:
+    raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+  # Ищем пользователя в БД
+  user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
+  if not user or user.refresh_token != refresh_token:
+    raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+  # Удаляем refresh_token из БД
+  user.refresh_token = None
+  db.commit()
+
+  return {"message": "Logout successful"}
+
+@app.get("/admin")
+def admin_panel(user: models.User = Depends(auth.get_current_user)):  
+  if not user.is_admin:
+    raise HTTPException(status_code=403, detail="Access denied")
+
+  return {"message": "Welcome, Admin!", "user": user.email}
