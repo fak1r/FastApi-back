@@ -1,17 +1,17 @@
-from fastapi import FastAPI, Depends, HTTPException, Form
+from fastapi import FastAPI, Depends, HTTPException, Form, Response, Request
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db
-import models
-import auth
-import schemas
+import schemas, models, auth, os
 
 app = FastAPI()
 
 init_db()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+IS_PROD = os.getenv("ENV") == "production"
 
 # Разрешаем запросы с фронтенда (Nuxt 3)
 app.add_middleware(
@@ -50,27 +50,36 @@ def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):  
   return {"message": "User registered successfully", "user": {"id": new_user.id, "email": new_user.email}}
 
 @app.post("/login", response_model=schemas.TokenResponse)
-def login(request: schemas.LoginRequest, db: Session = Depends(get_db)):
+def login(request: schemas.LoginRequest, response: Response, db: Session = Depends(get_db)):
   user = db.query(models.User).filter(models.User.email == request.email).first()
   if not user or not auth.verify_password(request.password, user.hashed_password):
     raise HTTPException(status_code=400, detail="Invalid email or password")
 
-  # Создаём токены
   access_token = auth.create_access_token({"sub": user.email})
   refresh_token = auth.create_refresh_token({"sub": user.email})
 
-  # Сохраняем refresh_token в БД
   user.refresh_token = refresh_token
   db.commit()
 
-  return {
-    "access_token": access_token,
-    "refresh_token": refresh_token,
-    "token_type": "bearer"
-  }
+  # Устанавливаем refresh-токен в cookie
+  response.set_cookie(
+    key="refresh_token",
+    value=refresh_token,
+    httponly=True,
+    samesite="Strict" if IS_PROD else "None",
+    secure=True,
+  )
+
+  return {"access_token": access_token, "token_type": "bearer", "user": {"email": user.email, "name": user.name}}
 
 @app.post("/refresh", response_model=schemas.TokenResponse)
-def refresh(refresh_token: str = Form(...), db: Session = Depends(get_db)):
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+  # Берём refresh-токен из cookie
+  refresh_token = request.cookies.get("refresh_token")
+  if not refresh_token:
+    raise HTTPException(status_code=401, detail="No refresh token in cookies")
+
+
   # Декодируем refresh-токен
   payload = auth.verify_token(refresh_token, auth.REFRESH_SECRET_KEY)
   if not payload:
@@ -79,6 +88,7 @@ def refresh(refresh_token: str = Form(...), db: Session = Depends(get_db)):
   # Ищем пользователя в БД
   user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
   if not user or user.refresh_token != refresh_token:
+    response.delete_cookie("refresh_token")
     raise HTTPException(status_code=401, detail="Invalid refresh token")
 
   # Создаём новые токены
@@ -89,25 +99,32 @@ def refresh(refresh_token: str = Form(...), db: Session = Depends(get_db)):
   user.refresh_token = new_refresh_token
   db.commit()
 
-  return {"access_token": new_access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
+  # Ставим новый refresh-токен в cookie
+  response.set_cookie(
+    key="refresh_token",
+    value=new_refresh_token,
+    httponly=True,  
+    samesite="Strict" if IS_PROD else "None",
+    secure=True,
+  )
+
+  return {"access_token": new_access_token, "user": {"email": user.email, "name": user.name}}
 
 @app.post("/logout")
-def logout(refresh_token: str = Form(...), db: Session = Depends(get_db)):
-  # Декодируем refresh-токен
-  payload = auth.verify_token(refresh_token, auth.REFRESH_SECRET_KEY)
-  if not payload:
-    raise HTTPException(status_code=401, detail="Invalid refresh token")
+def logout(response: Response, db: Session = Depends(get_db), request: Request = None):
+  refresh_token = request.cookies.get("refresh_token")
 
-  # Ищем пользователя в БД
-  user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
-  if not user or user.refresh_token != refresh_token:
-    raise HTTPException(status_code=401, detail="Invalid refresh token")
+  if refresh_token:
+    # Ищем пользователя в БД по refresh-токену
+    user = db.query(models.User).filter(models.User.refresh_token == refresh_token).first()
+    if user:
+      # Удаляем refresh_token из БД
+      user.refresh_token = None 
+      db.commit()
+  
+  response.delete_cookie("refresh_token")
 
-  # Удаляем refresh_token из БД
-  user.refresh_token = None
-  db.commit()
-
-  return {"message": "Logout successful"}
+  return {"message": "Logged out"}
 
 @app.get("/admin")
 def admin_panel(user: models.User = Depends(auth.get_current_user)):  
