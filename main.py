@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db
 import schemas, models, auth, os
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 app = FastAPI()
 
@@ -12,6 +14,8 @@ init_db()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 IS_PROD = os.getenv("ENV") == "production"
+
+limiter = Limiter(key_func=get_remote_address)
 
 # Разрешаем запросы с фронтенда (Nuxt 3)
 app.add_middleware(
@@ -33,6 +37,7 @@ def get_db():
 def ping_db(db: Session = Depends(get_db)):
   return {"message": "Database connection successful!"}
 
+@limiter.limit("3 per hour")
 @app.post("/register")
 def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):  # <-- Принимаем JSON-данные
   # Проверяем, есть ли уже такой email в БД
@@ -49,6 +54,7 @@ def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):  
   db.refresh(new_user)
   return {"message": "User registered successfully", "user": {"id": new_user.id, "email": new_user.email}}
 
+@limiter.limit("5 per minute")
 @app.post("/login", response_model=schemas.TokenResponse)
 def login(request: schemas.LoginRequest, response: Response, db: Session = Depends(get_db)):
   user = db.query(models.User).filter(models.User.email == request.email).first()
@@ -70,8 +76,9 @@ def login(request: schemas.LoginRequest, response: Response, db: Session = Depen
     secure=True,
   )
 
-  return {"access_token": access_token, "token_type": "bearer", "user": {"email": user.email, "name": user.name}}
+  return {"access_token": access_token, "token_type": "bearer", "user": {"email": user.email, "name": user.name, "is_admin": user.is_admin }}
 
+@limiter.limit("5 per minute")
 @app.post("/refresh", response_model=schemas.TokenResponse)
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
   # Берём refresh-токен из cookie
@@ -108,8 +115,9 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     secure=True,
   )
 
-  return {"access_token": new_access_token, "user": {"email": user.email, "name": user.name}}
+  return {"access_token": new_access_token, "user": {"email": user.email, "name": user.name, "is_admin": user.is_admin }}
 
+@limiter.limit("5 per minute")
 @app.post("/logout")
 def logout(response: Response, db: Session = Depends(get_db), request: Request = None):
   refresh_token = request.cookies.get("refresh_token")
@@ -126,9 +134,7 @@ def logout(response: Response, db: Session = Depends(get_db), request: Request =
 
   return {"message": "Logged out"}
 
-@app.get("/admin")
-def admin_panel(user: models.User = Depends(auth.get_current_user)):  
-  if not user.is_admin:
-    raise HTTPException(status_code=403, detail="Access denied")
-
-  return {"message": "Welcome, Admin!", "user": user.email}
+@limiter.limit("5 per minute")
+@app.get("/me", response_model=schemas.UserResponse)
+def get_current_user_info(request: Request, user=Depends(auth.get_current_user)):
+  return {"email": user.email, "name": user.name, "is_admin": user.is_admin}

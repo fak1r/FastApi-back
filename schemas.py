@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr
 class UserResponse(BaseModel):
   email: EmailStr
   name: str
+  is_admin: bool
 
 # Запрос на логин
 class LoginRequest(BaseModel):
