@@ -17,10 +17,12 @@ IS_PROD = os.getenv("ENV") == "production"
 
 limiter = Limiter(key_func=get_remote_address)
 
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS").split(",")
+
 # Разрешаем запросы с фронтенда (Nuxt 3)
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=["http://localhost:3000"],
+  allow_origins=ALLOWED_ORIGINS,
   allow_credentials=True,
   allow_methods=["*"],
   allow_headers=["*"],
@@ -95,6 +97,9 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
   # Ищем пользователя в БД
   user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
   if not user or user.refresh_token != refresh_token:
+    if user:
+      user.refresh_token = None
+      db.commit()
     response.delete_cookie("refresh_token")
     raise HTTPException(status_code=401, detail="Invalid refresh token")
 

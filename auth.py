@@ -33,8 +33,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # Генерация JWT-токена access
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
   to_encode = data.copy()
-  expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-  to_encode.update({"exp": expire})
+  now = datetime.utcnow()
+  expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+  to_encode.update({"exp": expire, "iat": now})
   return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Генерация JWT-токена refresh
@@ -48,9 +49,9 @@ def create_refresh_token(data: dict):
 def verify_token(token: str, secret_key: str):
   try:
     payload = jwt.decode(token, secret_key, algorithms=[ALGORITHM])
-    return payload  # Возвращаем данные из токена
+    return payload  # Возвращаем данные из токена, если он валиден
   except JWTError:
-    return None  # Токен недействителен
+    raise HTTPException(status_code=401, detail="Invalid or expired token")  # Токен недействителен
 
 # Функция для получения текущего пользователя по access_token
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
