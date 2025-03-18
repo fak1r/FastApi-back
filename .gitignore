@@ -1,5 +1,7 @@
 .env
 __pycache__/
+static
+service_account.json
 *.pyc
 *.pyo
 *.pyd

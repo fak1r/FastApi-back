@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Depends, HTTPException, Form, Response, Request
+from fastapi import FastAPI, Depends, HTTPException, Form, Response, Request, Query
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db
 import schemas, models, auth, os
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from typing import List, Optional
+from routers import products
 
 app = FastAPI()
 
@@ -19,6 +22,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS").split(",")
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Разрешаем запросы с фронтенда (Nuxt 3)
 app.add_middleware(
   CORSMiddleware,
@@ -27,6 +32,9 @@ app.add_middleware(
   allow_methods=["*"],
   allow_headers=["*"],
 )
+
+# Подключаем router для продуктов
+app.include_router(products.router)
 
 def get_db():
   db = SessionLocal()
@@ -45,7 +53,7 @@ def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):  
   # Проверяем, есть ли уже такой email в БД
   existing_user = db.query(models.User).filter(models.User.email == request.email).first()
   if existing_user:
-      raise HTTPException(status_code=400, detail="Email already registered")
+    raise HTTPException(status_code=400, detail="Email already registered")
 
   # Создаём нового пользователя
   hashed_password = auth.hash_password(request.password)
