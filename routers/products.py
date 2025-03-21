@@ -10,7 +10,6 @@ from slowapi import Limiter
 from schemas import ProductResponse
 import re
 
-router = APIRouter(prefix="/products", tags=["Products"])
 limiter = Limiter(key_func=lambda: "global")  # Ограничения запросов
 
 # Создаём router для продуктов
@@ -120,23 +119,28 @@ async def upload_products_google(request: Request, sheet_url: str, db: Session =
     db.rollback()
     raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {str(e)}")
 
-@limiter.limit("10 per minute")
 @router.get("/categories", response_model=List[schemas.CategoryResponse])
 def get_categories(request: Request, db: Session = Depends(get_db)):
   categories = db.query(models.Category).all()
-  return categories
+  return [schemas.CategoryResponse(id=c.id, name=c.name, producers=[]) for c in categories]
 
 @limiter.limit("10 per minute")
 @router.get("/producers", response_model=List[schemas.ProducerResponse])
 def get_producers(request: Request, db: Session = Depends(get_db)):
   producers = db.query(models.Producer).all()
-  return producers
+  return [
+    schemas.ProducerResponse(id=p.id, name=p.name, category_id=p.category_id, product_lines=[])
+    for p in producers
+  ]
 
 @limiter.limit("10 per minute")
 @router.get("/product_lines", response_model=List[schemas.ProductLineResponse])
 def get_product_lines(request: Request, db: Session = Depends(get_db)):
   product_lines = db.query(models.ProductLine).all()
-  return product_lines
+  return [
+    schemas.ProductLineResponse(id=pl.id, name=pl.name, producer_id=pl.producer_id, products=[])
+    for pl in product_lines
+  ]
 
 @limiter.limit("30 per minute")
 @router.get("/", response_model=list[ProductResponse])
