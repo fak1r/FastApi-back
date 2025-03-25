@@ -1,7 +1,7 @@
 import gspread
 import pandas as pd
 import models, schemas
-from models import Product, ProductLine, ProductImage
+from models import Product, ProductLine, ProductImage, Producer 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request, Query
 from sqlalchemy.orm import Session
 from database import get_db
@@ -19,14 +19,14 @@ router = APIRouter(prefix="/products", tags=["Products"])
 SERVICE_ACCOUNT_FILE = "service_account.json"
 
 def get_google_sheet(sheet_url: str):
-  try:
-    sheet_id = re.search(r"/d/([a-zA-Z0-9-_]+)", sheet_url).group(1)  # Извлекаем sheet_id из URL
-    sheet = gspread.service_account(SERVICE_ACCOUNT_FILE).open_by_key(sheet_id).sheet1
-    df = pd.DataFrame(sheet.get_all_values())
-    df.columns = df.iloc[0]  # Устанавливаем заголовки
-    return df[1:]  # Возвращаем данные без первой строки
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f"Ошибка Google Sheets API: {str(e)}")
+    try:
+        sheet_id = re.search(r"/d/([a-zA-Z0-9-_]+)", sheet_url).group(1)  # Извлекаем sheet_id из URL
+        sheet = gspread.service_account(SERVICE_ACCOUNT_FILE).open_by_key(sheet_id).sheet1
+        df = pd.DataFrame(sheet.get_all_values())
+        df.columns = df.iloc[0]  # Устанавливаем заголовки
+        return df[1:]  # Возвращаем данные без первой строки
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка Google Sheets API: {str(e)}")
 
 # Эндпоинт загрузки продуктов из Google Sheets
 @limiter.limit("10 per minute") 
@@ -119,28 +119,23 @@ async def upload_products_google(request: Request, sheet_url: str, db: Session =
     db.rollback()
     raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {str(e)}")
 
+@limiter.limit("10 per minute")
 @router.get("/categories", response_model=List[schemas.CategoryResponse])
 def get_categories(request: Request, db: Session = Depends(get_db)):
   categories = db.query(models.Category).all()
-  return [schemas.CategoryResponse(id=c.id, name=c.name, producers=[]) for c in categories]
+  return categories
 
 @limiter.limit("10 per minute")
 @router.get("/producers", response_model=List[schemas.ProducerResponse])
 def get_producers(request: Request, db: Session = Depends(get_db)):
   producers = db.query(models.Producer).all()
-  return [
-    schemas.ProducerResponse(id=p.id, name=p.name, category_id=p.category_id, product_lines=[])
-    for p in producers
-  ]
+  return producers
 
 @limiter.limit("10 per minute")
 @router.get("/product_lines", response_model=List[schemas.ProductLineResponse])
 def get_product_lines(request: Request, db: Session = Depends(get_db)):
   product_lines = db.query(models.ProductLine).all()
-  return [
-    schemas.ProductLineResponse(id=pl.id, name=pl.name, producer_id=pl.producer_id, products=[])
-    for pl in product_lines
-  ]
+  return product_lines
 
 @limiter.limit("30 per minute")
 @router.get("/", response_model=list[ProductResponse])

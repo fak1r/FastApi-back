@@ -24,43 +24,43 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # Хеширование пароля
 def hash_password(password: str) -> str:
-  return pwd_context.hash(password)
+    return pwd_context.hash(password)
 
 # Проверка пароля
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-  return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(plain_password, hashed_password)
 
 # Генерация JWT-токена access
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
-  to_encode = data.copy()
-  now = datetime.utcnow()
-  expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-  to_encode.update({"exp": expire, "iat": now})
-  return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    to_encode = data.copy()
+    now = datetime.utcnow()
+    expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire, "iat": now})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Генерация JWT-токена refresh
 def create_refresh_token(data: dict):
-  to_encode = data.copy()
-  expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-  to_encode.update({"exp": expire})
-  return jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
 
 # Декодирование токена
 def verify_token(token: str, secret_key: str):
-  try:
-    payload = jwt.decode(token, secret_key, algorithms=[ALGORITHM])
-    return payload  # Возвращаем данные из токена, если он валиден
-  except JWTError:
-    raise HTTPException(status_code=401, detail="Invalid or expired token")  # Токен недействителен
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[ALGORITHM])
+        return payload  # Возвращаем данные из токена, если он валиден
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")  # Токен недействителен
 
 # Функция для получения текущего пользователя по access_token
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-  payload = verify_token(token, SECRET_KEY)
-  if not payload:
-    raise HTTPException(status_code=401, detail="Invalid or expired access token")
+    payload = verify_token(token, SECRET_KEY)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired access token")
 
-  user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
-  if not user:
-    raise HTTPException(status_code=401, detail="User not found")
+    user = db.query(models.User).filter(models.User.email == payload["sub"]).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
 
-  return user
+    return user
