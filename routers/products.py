@@ -6,10 +6,8 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from database import get_db
 from typing import List, Optional
-from slowapi import Limiter
+from utils.limiter import limiter
 import re
-
-limiter = Limiter(key_func=lambda: "global")  # Ограничения запросов
 
 # Создаём router для продуктов
 router = APIRouter(prefix="/products", tags=["Products"])
