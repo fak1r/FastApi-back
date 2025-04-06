@@ -31,9 +31,9 @@ app.add_middleware(
 )
 
 # Подключаем router для продуктов
-app.include_router(products.router)
+app.include_router(products.router, prefix="/api")
 # Подключаем router для аутентификации
-app.include_router(auth.router)
+app.include_router(auth.router, prefix="/api")
 
 @app.get("/ping_db")
 def ping_db():
