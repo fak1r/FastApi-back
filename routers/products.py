@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from database import get_db
 from typing import List, Optional
-from utils.limiter import limiter
 import re
 
 # Создаём router для продуктов
@@ -26,9 +25,8 @@ def get_google_sheet(sheet_url: str):
         raise HTTPException(status_code=500, detail=f"Ошибка Google Sheets API: {str(e)}")
 
 # Эндпоинт загрузки продуктов из Google Sheets
-@limiter.limit("10 per minute") 
 @router.post("/upload_google")
-async def upload_products_google(request: Request, sheet_url: str, db: Session = Depends(get_db)):
+async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
     try:
         # Загружаем Google Sheet в DataFrame
         df = get_google_sheet(sheet_url)
@@ -188,25 +186,21 @@ async def upload_products_google(request: Request, sheet_url: str, db: Session =
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {str(e)}")
 
-@limiter.limit("10 per minute")
 @router.get("/categories", response_model=List[schemas.CategoryResponse])
-def get_categories(request: Request, db: Session = Depends(get_db)):
+def get_categories(db: Session = Depends(get_db)):
     categories = db.query(models.Category).all()
     return categories
 
-@limiter.limit("10 per minute")
 @router.get("/producers", response_model=List[schemas.ProducerResponse])
-def get_producers(request: Request, db: Session = Depends(get_db)):
+def get_producers(db: Session = Depends(get_db)):
     producers = db.query(models.Producer).all()
     return producers
 
-@limiter.limit("10 per minute")
 @router.get("/product_lines", response_model=List[schemas.ProductLineResponse])
-def get_product_lines(request: Request, db: Session = Depends(get_db)):
+def get_product_lines(db: Session = Depends(get_db)):
     product_lines = db.query(models.ProductLine).all()
     return product_lines
 
-@limiter.limit("30 per minute")
 @router.get("/", response_model=List[schemas.ProductPreview])
 def get_products(
     request: Request,

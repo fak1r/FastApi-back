@@ -3,21 +3,19 @@ from sqlalchemy.orm import Session
 from database import get_db
 import os
 
-import schemas, models, auth
-from auth import get_current_user
-from utils.limiter import limiter
+import schemas, models, security
+from security import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 IS_PROD = os.getenv("ENV") == "production"
 
-@limiter.limit("3 per hour")
 @router.post("/register")
 def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):
     existing_user = db.query(models.User).filter(models.User.email == request.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    hashed_password = auth.hash_password(request.password)
+    hashed_password = security.hash_password(request.password)
     new_user = models.User(
         name=request.name,
         email=request.email,
@@ -33,16 +31,15 @@ def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):
         "user": {"id": new_user.id, "email": new_user.email}
     }
 
-@limiter.limit("5 per minute")
 @router.post("/login", response_model=schemas.TokenResponse)
 def login(request: schemas.LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == request.email).first()
 
-    if not user or not auth.verify_password(request.password, user.hashed_password):
+    if not user or not security.verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
-    access_token = auth.create_access_token({"sub": user.email})
-    refresh_token = auth.create_refresh_token({"sub": user.email})
+    access_token = security.create_access_token({"sub": user.email})
+    refresh_token = security.create_refresh_token({"sub": user.email})
 
     user.refresh_token = refresh_token
     db.commit()
@@ -61,14 +58,13 @@ def login(request: schemas.LoginRequest, response: Response, db: Session = Depen
         "user": {"email": user.email, "name": user.name, "is_admin": user.is_admin}
     }
 
-@limiter.limit("5 per minute")
 @router.post("/refresh", response_model=schemas.TokenResponse)
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token in cookies")
 
-    payload = auth.verify_token(refresh_token, auth.REFRESH_SECRET_KEY)
+    payload = security.verify_token(refresh_token, security.REFRESH_SECRET_KEY)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -80,8 +76,8 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         response.delete_cookie("refresh_token")
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    new_access_token = auth.create_access_token({"sub": payload["sub"]})
-    new_refresh_token = auth.create_refresh_token({"sub": payload["sub"]})
+    new_access_token = security.create_access_token({"sub": payload["sub"]})
+    new_refresh_token = security.create_refresh_token({"sub": payload["sub"]})
 
     user.refresh_token = new_refresh_token
     db.commit()
@@ -99,9 +95,8 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         "user": {"email": user.email, "name": user.name, "is_admin": user.is_admin}
     }
 
-@limiter.limit("5 per minute")
 @router.post("/logout")
-def logout(response: Response, db: Session = Depends(get_db), request: Request = None):
+def logout(db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
 
     if refresh_token:
@@ -113,9 +108,8 @@ def logout(response: Response, db: Session = Depends(get_db), request: Request =
     response.delete_cookie("refresh_token")
     return {"message": "Logged out"}
 
-@limiter.limit("5 per minute")
 @router.get("/me", response_model=schemas.UserResponse)
-def get_current_user_info(request: Request, user=Depends(get_current_user)):
+def get_current_user_info(user=Depends(get_current_user)):
     return {
         "email": user.email,
         "name": user.name,

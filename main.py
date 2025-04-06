@@ -4,11 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from database import init_db
 import os
-
-from utils.limiter import limiter
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-
 from routers import products, auth
 
 # Инициализация приложения
@@ -18,18 +13,6 @@ app = FastAPI()
 @app.on_event("startup")
 def startup_event():
     init_db()
-
-# Ограничение количества запросов
-app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
-
-# Обработка превышения лимита
-@app.exception_handler(RateLimitExceeded)
-def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
-        status_code=429,
-        content={"detail": "Слишком много запросов. Попробуй позже 🙅‍♂️"},
-    )
 
 # Прод/дев переменные
 IS_PROD = os.getenv("ENV") == "production"
