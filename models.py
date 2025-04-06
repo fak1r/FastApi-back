@@ -55,9 +55,11 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
-    price = Column(Float, nullable=False)
     product_line_id = Column(Integer, ForeignKey("product_lines.id"), nullable=False)
+    price = Column(Float, nullable=False)
+    img_mini = Column(JSONB, nullable=True)
+    rating = Column(Float, default=0.0)
+    description = Column(String, nullable=True)
     favorite = Column(Boolean, default=False)
     details = Column(JSONB, nullable=True)
 

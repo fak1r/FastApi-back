@@ -71,6 +71,7 @@ class ProductBase(BaseModel):
     product_line_id: int
     favorite: bool = False
     details: Optional[Dict[str, str]] = None  # JSONB-поле для специфических характеристик
+    img_mini: Optional[List[str]] = None
 
 class ProductCreate(ProductBase):
     pass
@@ -85,6 +86,17 @@ class ProductImageResponse(BaseModel):
 class ProductResponse(ProductBase):
     id: int
     images: List[ProductImageResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class ProductPreview(BaseModel):
+    id: int
+    name: str
+    price: float
+    favorite: bool
+    product_line_id: int
+    img_mini: Optional[List[str]] = None
 
     class Config:
         from_attributes = True
