@@ -96,7 +96,7 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     }
 
 @router.post("/logout")
-def logout(db: Session = Depends(get_db)):
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
 
     if refresh_token:

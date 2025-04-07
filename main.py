@@ -1,13 +1,29 @@
-from fastapi import FastAPI, Request
+import os
+
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+import redis.asyncio as redis
+
 from database import init_db
-import os
 from routers import products, auth
 
-# Инициализация приложения
-app = FastAPI()
+ENABLE_RATE_LIMITER = os.getenv("ENABLE_RATE_LIMITER", "false").lower() == "true"
+
+if ENABLE_RATE_LIMITER:
+    app = FastAPI(dependencies=[Depends(RateLimiter(times=3, seconds=60))])
+else:
+    app = FastAPI()
+
+@app.on_event("startup")
+async def startup():
+    if ENABLE_RATE_LIMITER:
+        redis_client = redis.from_url("redis://localhost", encoding="utf-8", decode_responses=True)
+        await FastAPILimiter.init(redis_client)
 
 # Подключение к базе при запуске
 @app.on_event("startup")

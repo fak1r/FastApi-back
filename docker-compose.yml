@@ -28,5 +28,11 @@ services:
       - postgres
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+
 volumes:
   postgres_data:
