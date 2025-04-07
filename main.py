@@ -15,7 +15,7 @@ from routers import products, auth
 ENABLE_RATE_LIMITER = os.getenv("ENABLE_RATE_LIMITER", "false").lower() == "true"
 
 if ENABLE_RATE_LIMITER:
-    app = FastAPI(dependencies=[Depends(RateLimiter(times=3, seconds=60))])
+    app = FastAPI(dependencies=[Depends(RateLimiter(times=30, seconds=60))])
 else:
     app = FastAPI()
 
