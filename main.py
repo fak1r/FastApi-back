@@ -36,7 +36,7 @@ else:
 @app.on_event("startup")
 async def startup():
     if ENABLE_RATE_LIMITER:
-        redis_client = redis.from_url("redis://localhost", encoding="utf-8", decode_responses=True)
+        redis_client = redis.from_url("redis://redis:6379", encoding="utf-8", decode_responses=True)
         await FastAPILimiter.init(redis_client)
 
 # Подключение к базе при запуске
