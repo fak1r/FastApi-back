@@ -44,9 +44,7 @@ async def startup():
 def startup_event():
     init_db()
 
-# Прод/дев переменные
-IS_PROD = os.getenv("ENV") == "production"
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+ALLOWED_ORIGINS = list(set(os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")))
 
 # Раздача статики
 app.mount("/static", StaticFiles(directory="static"), name="static")
