@@ -11,13 +11,27 @@ import redis.asyncio as redis
 
 from database import init_db
 from routers import products, auth
+import logging
 
 ENABLE_RATE_LIMITER = os.getenv("ENABLE_RATE_LIMITER", "false").lower() == "true"
+SHOW_DOCS = os.getenv("SHOW_DOCS", "true").lower() == "true"
+
+# Настройки документации
+docs_kwargs = {}
+if not SHOW_DOCS:
+    docs_kwargs = {
+        "docs_url": None,
+        "redoc_url": None,
+        "openapi_url": None
+    }
 
 if ENABLE_RATE_LIMITER:
-    app = FastAPI(dependencies=[Depends(RateLimiter(times=30, seconds=60))])
+    app = FastAPI(
+        dependencies=[Depends(RateLimiter(times=30, seconds=60))],
+        **docs_kwargs
+    )
 else:
-    app = FastAPI()
+    app = FastAPI(**docs_kwargs)
 
 @app.on_event("startup")
 async def startup():
@@ -54,3 +68,10 @@ app.include_router(auth.router, prefix="/api")
 @app.get("/ping_db")
 def ping_db():
     return {"message": "Database connection successful!"}
+
+# Логгирование
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info(f"✅ Limiter = {ENABLE_RATE_LIMITER}")
+logger.info(f"✅ Docs = {SHOW_DOCS}")
