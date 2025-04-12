@@ -212,7 +212,9 @@ def get_products(
     max_price: float = None,
     favorite: bool = None,
     sort_by: str = Query(None, regex="^(price|name)$"),
-    order: str = Query("asc", regex="^(asc|desc)$")
+    order: str = Query("asc", regex="^(asc|desc)$"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1)
 ):
     query = db.query(Product)
 
@@ -248,7 +250,9 @@ def get_products(
             order_func = order_func.desc()
         query = query.order_by(order_func)
 
-    products = query.all()
+    total = query.count()
+    offset = (page - 1) * per_page
+    products = query.offset(offset).limit(per_page).all()
 
     # Преобразуем относительные пути миниатюр в абсолютные
     base_url = str(request.base_url).rstrip("/")
