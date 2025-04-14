@@ -101,5 +101,12 @@ class ProductPreview(BaseModel):
     class Config:
         from_attributes = True
 
+class PaginatedProducts(BaseModel):
+    items: List[ProductPreview]
+    total: int
+    page: int
+    limit: int
+    pages: int
+
 if TYPE_CHECKING:
     from schemas import ProductLineResponse, ProducerResponse, CategoryResponse

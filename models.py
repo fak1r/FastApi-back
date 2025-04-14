@@ -18,6 +18,7 @@ class Category(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
+    slug = Column(String, unique=True, index=True)
 
     producers = relationship("Producer", back_populates="category")
 
@@ -26,6 +27,7 @@ class Producer(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
+    slug = Column(String, unique=True, index=True) 
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
 
     category = relationship("Category", back_populates="producers")
@@ -36,6 +38,7 @@ class ProductLine(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
+    slug = Column(String, unique=True, index=True)
     producer_id = Column(Integer, ForeignKey("producers.id"), nullable=False)
 
     producer = relationship("Producer", back_populates="product_lines")
@@ -55,6 +58,7 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    slug = Column(String, unique=True, index=True)
     product_line_id = Column(Integer, ForeignKey("product_lines.id"), nullable=False)
     price = Column(Float, nullable=False)
     img_mini = Column(JSONB, nullable=True)

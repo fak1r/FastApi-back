@@ -1,17 +1,18 @@
 import gspread
 import pandas as pd
 import models, schemas
-from models import Product, ProductLine, ProductImage, Producer 
+from models import Product, ProductLine, ProductImage, Producer, Category
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from typing import List, Optional
+from slugify import slugify
+from math import ceil
 import re
 
 # Создаём router для продуктов
 router = APIRouter(prefix="/products", tags=["Products"])
 
-# Подключение к Google Sheets через Service Account
 SERVICE_ACCOUNT_FILE = "service_account.json"
 
 def get_google_sheet(sheet_url: str):
@@ -28,15 +29,13 @@ def get_google_sheet(sheet_url: str):
 @router.post("/upload_google")
 async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
     try:
-        # Загружаем Google Sheet в DataFrame
         df = get_google_sheet(sheet_url)
 
-        # Столбцы, не относящиеся к деталям
+        # Всё что не относится к деталям
         base_columns = {
-            "Наименование", "Цена", "Img", "Img_mini", "is_favorite", "Описание", "product_line"
+            "Наименование", "Цена", "Img", "Img_mini", "is_favorite", "product_line"
         }
 
-        # Загружаем все текущие продукты из БД
         existing_products = db.query(Product).all()
         existing_products_dict = {p.name: p for p in existing_products}
 
@@ -44,60 +43,71 @@ async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
         products_to_update = []
         images_to_add = []
         sheet_product_names = set(df["Наименование"])
+        seen_slugs = set()
 
         for _, row in df.iterrows():
-            # Получаем линейку по имени
-            product_line = db.query(ProductLine).filter(
-                ProductLine.name.ilike(row["product_line"])
-            ).first()
-            if not product_line:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Линейка '{row['product_line']}' не найдена в базе."
-                )
+            product_name = str(row["Наименование"]).strip()
 
-            # Всё, что не входит в базовые поля — это детали (динамичные поля)
+            # Если есть повторы, добавляем индекс
+            base_slug = slugify(product_name)
+            new_slug = base_slug
+            counter = 1
+            while new_slug in seen_slugs:
+                new_slug = f"{base_slug}-{counter}"
+                counter += 1
+            seen_slugs.add(new_slug)
+
+            # Получаем или создаём линейку
+            product_line_name = row["product_line"].strip()
+            product_line = db.query(ProductLine).filter(
+                ProductLine.name.ilike(product_line_name)
+            ).first()
+
+            if not product_line:
+                product_line = ProductLine(
+                    name=product_line_name,
+                    slug=slugify(product_line_name)
+                )
+                db.add(product_line)
+                db.flush()
+            elif not product_line.slug:
+                product_line.slug = slugify(product_line.name)
+                db.add(product_line)
+                db.flush()
+
             details = {
                 key: row[key]
                 for key in df.columns
-                if key not in base_columns
+                if key not in base_columns and pd.notna(row[key])
             }
 
-            # Разделяем список изображений по запятой
+            if "Описание" in row and pd.notna(row["Описание"]):
+                details["Описание"] = str(row["Описание"]).strip()
+
             images = row.get("Img", "").split(",")
             images = [img.strip() for img in images if img.strip()]
 
-            # Обработка миниатюры (как массив строк)
             img_mini_raw = row.get("Img_mini", "")
             img_mini = [img.strip() for img in img_mini_raw.split(",") if img.strip()]
             if not img_mini:
                 img_mini = None
 
-            # Проверяем, есть ли уже такой продукт
+            # Проверка существующего продукта
             existing_product = next(
                 (
                     p for p in existing_products
-                    if p.name.strip().lower() == row["Наименование"].strip().lower()
+                    if p.name.strip().lower() == product_name.lower()
                 ),
                 None
             )
 
             if existing_product:
-                # Обновляем только если что-то изменилось
                 updated = False
 
-                new_description = (
-                    str(row["Описание"]).strip()
-                    if pd.notna(row["Описание"]) else None
-                )
                 new_price = float(row["Цена"])
                 new_favorite = (
                     str(row["is_favorite"]).strip().lower() in ["true", "TRUE"]
                 )
-
-                if existing_product.description != new_description:
-                    existing_product.description = new_description
-                    updated = True
 
                 if existing_product.price != new_price:
                     existing_product.price = new_price
@@ -115,31 +125,37 @@ async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
                     existing_product.img_mini = img_mini
                     updated = True
 
+                # Обновляем slug только если ИМЯ изменилось
+                if existing_product.name.strip().lower() != product_name.lower():
+                    base_slug = slugify(product_name)
+                    new_slug = base_slug
+                    counter = 1
+                    while new_slug in seen_slugs:
+                        new_slug = f"{base_slug}-{counter}"
+                        counter += 1
+                    seen_slugs.add(new_slug)
+
+                    existing_product.slug = new_slug
+                    updated = True
+
                 if updated:
                     products_to_update.append(existing_product)
 
-                # Проверяем, изменились ли изображения
+                # Обновляем изображения, если изменились
                 existing_image_urls = {img.image_url for img in existing_product.images}
                 if set(images) != existing_image_urls:
-                    # Удаляем старые изображения
                     db.query(ProductImage).filter(
                         ProductImage.product_id == existing_product.id
                     ).delete()
-
-                    # Добавляем новые
                     for img in images:
                         images_to_add.append(
                             ProductImage(product_id=existing_product.id, image_url=img)
                         )
 
             else:
-                # Новый продукт
                 product = Product(
-                    name=str(row["Наименование"]).strip(),
-                    description=(
-                        str(row["Описание"]).strip()
-                        if pd.notna(row["Описание"]) else None
-                    ),
+                    name=product_name,
+                    slug=new_slug,
                     price=float(row["Цена"]),
                     product_line_id=product_line.id,
                     favorite=(
@@ -152,13 +168,12 @@ async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
 
                 products_to_add.append(product)
 
-                # Связываем изображения с продуктом
                 for img in images:
                     images_to_add.append(
                         ProductImage(product=product, image_url=img)
                     )
 
-        # Удаляем те продукты, которых нет в таблице
+        # Удаляем отсутствующие в таблице продукты
         products_to_delete = [
             p for p in existing_products
             if p.name.strip().lower() not in {
@@ -169,7 +184,6 @@ async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
         for product in products_to_delete:
             db.delete(product)
 
-        # Сохраняем изменения
         db.bulk_save_objects(products_to_update)
         db.add_all(products_to_add)
         db.add_all(images_to_add)
@@ -263,3 +277,94 @@ def get_products(
             ]
 
     return products
+
+@router.get("/{category_slug}", response_model=schemas.PaginatedProducts)
+def get_products_by_category_slug(
+    category_slug: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, ge=1, le=100),
+    sort_by: str = Query("name", pattern="^(price|name)$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(Product)
+        .join(ProductLine)
+        .join(Producer)
+        .join(Category)
+        .filter(Category.slug == category_slug)
+    )
+
+    order_field = getattr(Product, sort_by)
+    query = query.order_by(order_field.desc() if order == "desc" else order_field.asc())
+
+    total = query.count()
+    products = query.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "items": products,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": ceil(total / limit)
+    }
+
+@router.get("/{category_slug}/{producer_slug}", response_model=schemas.PaginatedProducts)
+def get_products_by_producer_slug(
+    category_slug: str,
+    producer_slug: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(12, ge=1, le=100),
+    sort_by: str = Query("name", pattern="^(price|name)$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(Product)
+        .join(ProductLine)
+        .join(Producer)
+        .join(Category)
+        .filter(
+            Producer.slug == producer_slug,
+            Category.slug == category_slug
+        )
+    )
+
+    order_field = getattr(Product, sort_by)
+    query = query.order_by(order_field.desc() if order == "desc" else order_field.asc())
+
+    total = query.count()
+    products = query.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "items": products,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": ceil(total / limit)
+    }
+
+@router.get("/{category_slug}/{producer_slug}/{product_slug}", response_model=schemas.ProductResponse)
+def get_product_by_slug(
+    category_slug: str,
+    producer_slug: str,
+    product_slug: str,
+    db: Session = Depends(get_db),
+):
+    product = (
+        db.query(Product)
+        .join(ProductLine)
+        .join(Producer)
+        .join(Category)
+        .filter(
+            Product.slug == product_slug,
+            Producer.slug == producer_slug,
+            Category.slug == category_slug
+        )
+        .first()
+    )
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Продукт не найден")
+
+    return product
