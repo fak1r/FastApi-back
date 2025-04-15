@@ -24,10 +24,11 @@ class RegisterRequest(BaseModel):
 
 ### КАТЕГОРИЯ ###
 class CategoryBase(BaseModel):
-     name: str
+    name: str
+    slug: str
 
 class CategoryCreate(CategoryBase):
-      pass
+    pass
 
 class CategoryResponse(CategoryBase):
     id: int
@@ -39,9 +40,10 @@ class CategoryResponse(CategoryBase):
 class ProducerBase(BaseModel):
     name: str
     category_id: int
+    slug: str
 
 class ProducerCreate(ProducerBase):
-     pass
+    pass
 
 class ProducerResponse(ProducerBase):
     id: int
@@ -53,6 +55,7 @@ class ProducerResponse(ProducerBase):
 class ProductLineBase(BaseModel):
     name: str
     producer_id: int
+    slug: str
 
 class ProductLineCreate(ProductLineBase):
     pass
@@ -66,7 +69,7 @@ class ProductLineResponse(ProductLineBase):
 ### ПРОДУКТ ###
 class ProductBase(BaseModel):
     name: str
-    description: Optional[str] = None
+    slug: str
     price: float
     product_line_id: int
     favorite: bool = False
@@ -86,6 +89,7 @@ class ProductImageResponse(BaseModel):
 class ProductResponse(ProductBase):
     id: int
     images: List[ProductImageResponse] = []
+    self: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -93,10 +97,12 @@ class ProductResponse(ProductBase):
 class ProductPreview(BaseModel):
     id: int
     name: str
+    slug: str 
     price: float
     favorite: bool
     product_line_id: int
     img_mini: Optional[List[str]] = None
+    self: Optional[str] = None
 
     class Config:
         from_attributes = True

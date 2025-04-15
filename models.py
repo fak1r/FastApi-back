@@ -63,7 +63,6 @@ class Product(Base):
     price = Column(Float, nullable=False)
     img_mini = Column(JSONB, nullable=True)
     rating = Column(Float, default=0.0)
-    description = Column(String, nullable=True)
     favorite = Column(Boolean, default=False)
     details = Column(JSONB, nullable=True)
 

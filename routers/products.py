@@ -8,6 +8,7 @@ from database import get_db
 from typing import List, Optional
 from slugify import slugify
 from math import ceil
+from utils.product_utils import add_absolute_img_urls
 import re
 
 # Создаём router для продуктов
@@ -215,71 +216,102 @@ def get_product_lines(db: Session = Depends(get_db)):
     product_lines = db.query(models.ProductLine).all()
     return product_lines
 
-@router.get("/", response_model=List[schemas.ProductPreview])
-def get_products(
+# @router.get("/", response_model=List[schemas.ProductPreview])
+# def get_products(
+#     request: Request,
+#     db: Session = Depends(get_db),
+#     category_id: int = None,
+#     producer_id: int = None,
+#     product_line_id: int = None,
+#     min_price: float = None,
+#     max_price: float = None,
+#     favorite: bool = None,
+#     sort_by: str = Query(None, regex="^(price|name)$"),
+#     order: str = Query("asc", regex="^(asc|desc)$"),
+#     page: int = Query(1, ge=1),
+#     per_page: int = Query(20, ge=1)
+# ):
+#     query = db.query(Product)
+
+#     if category_id:
+#         producers_in_category = db.query(Producer.id).filter(
+#             Producer.category_id == category_id
+#         ).subquery()
+#         product_lines_in_category = db.query(ProductLine.id).filter(
+#             ProductLine.producer_id.in_(producers_in_category)
+#         ).subquery()
+#         query = query.filter(Product.product_line_id.in_(product_lines_in_category))
+
+#     if producer_id:
+#         product_lines_in_producer = db.query(ProductLine.id).filter(
+#             ProductLine.producer_id == producer_id
+#         ).subquery()
+#         query = query.filter(Product.product_line_id.in_(product_lines_in_producer))
+
+#     if product_line_id:
+#         query = query.filter(Product.product_line_id == product_line_id)
+
+#     if min_price:
+#         query = query.filter(Product.price >= min_price)
+#     if max_price:
+#         query = query.filter(Product.price <= max_price)
+
+#     if favorite is not None:
+#         query = query.filter(Product.favorite == favorite)
+
+#     if sort_by:
+#         order_func = getattr(Product, sort_by)
+#         if order == "desc":
+#             order_func = order_func.desc()
+#         query = query.order_by(order_func)
+
+#     total = query.count()
+#     offset = (page - 1) * per_page
+#     products = query.offset(offset).limit(per_page).all()
+
+#     # Преобразуем относительные пути миниатюр в абсолютные
+#     base_url = str(request.base_url).rstrip("/")
+#     add_absolute_img_urls(products, base_url)
+
+#     return products
+@router.get("/popular", response_model=schemas.PaginatedProducts)
+def get_popular_products(
     request: Request,
-    db: Session = Depends(get_db),
-    category_id: int = None,
-    producer_id: int = None,
-    product_line_id: int = None,
-    min_price: float = None,
-    max_price: float = None,
-    favorite: bool = None,
-    sort_by: str = Query(None, regex="^(price|name)$"),
-    order: str = Query("asc", regex="^(asc|desc)$"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1)
+    limit: int = Query(12, ge=1, le=100),
+    db: Session = Depends(get_db),
 ):
-    query = db.query(Product)
-
-    if category_id:
-        producers_in_category = db.query(Producer.id).filter(
-            Producer.category_id == category_id
-        ).subquery()
-        product_lines_in_category = db.query(ProductLine.id).filter(
-            ProductLine.producer_id.in_(producers_in_category)
-        ).subquery()
-        query = query.filter(Product.product_line_id.in_(product_lines_in_category))
-
-    if producer_id:
-        product_lines_in_producer = db.query(ProductLine.id).filter(
-            ProductLine.producer_id == producer_id
-        ).subquery()
-        query = query.filter(Product.product_line_id.in_(product_lines_in_producer))
-
-    if product_line_id:
-        query = query.filter(Product.product_line_id == product_line_id)
-
-    if min_price:
-        query = query.filter(Product.price >= min_price)
-    if max_price:
-        query = query.filter(Product.price <= max_price)
-
-    if favorite is not None:
-        query = query.filter(Product.favorite == favorite)
-
-    if sort_by:
-        order_func = getattr(Product, sort_by)
-        if order == "desc":
-            order_func = order_func.desc()
-        query = query.order_by(order_func)
+    query = (
+        db.query(Product)
+        .join(ProductLine)
+        .join(Producer)
+        .join(Category)
+        .filter(Product.favorite == True)
+    )
 
     total = query.count()
-    offset = (page - 1) * per_page
-    products = query.offset(offset).limit(per_page).all()
+    products = query.offset((page - 1) * limit).limit(limit).all()
 
-    # Преобразуем относительные пути миниатюр в абсолютные
     base_url = str(request.base_url).rstrip("/")
-    for product in products:
-        if product.img_mini:
-            product.img_mini = [
-                f"{base_url}/static/uploads/minify/{mini}" for mini in product.img_mini
-            ]
+    add_absolute_img_urls(products, base_url)
 
-    return products
+    for product in products:
+        category_slug = product.product_line.producer.category.slug
+        producer_slug = product.product_line.producer.slug
+        product.self = f"/{category_slug}/{producer_slug}/{product.slug}"
+
+    return {
+        "items": products,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": ceil(total / limit)
+    }
+
 
 @router.get("/{category_slug}", response_model=schemas.PaginatedProducts)
 def get_products_by_category_slug(
+    request: Request,   
     category_slug: str,
     page: int = Query(1, ge=1),
     limit: int = Query(12, ge=1, le=100),
@@ -301,6 +333,13 @@ def get_products_by_category_slug(
     total = query.count()
     products = query.offset((page - 1) * limit).limit(limit).all()
 
+    base_url = str(request.base_url).rstrip("/")
+    add_absolute_img_urls(products, base_url)
+
+    for product in products:
+        producer_slug = product.product_line.producer.slug
+        product.self = f"/{category_slug}/{producer_slug}/{product.slug}"
+
     return {
         "items": products,
         "total": total,
@@ -311,6 +350,7 @@ def get_products_by_category_slug(
 
 @router.get("/{category_slug}/{producer_slug}", response_model=schemas.PaginatedProducts)
 def get_products_by_producer_slug(
+    request: Request, 
     category_slug: str,
     producer_slug: str,
     page: int = Query(1, ge=1),
@@ -335,6 +375,13 @@ def get_products_by_producer_slug(
 
     total = query.count()
     products = query.offset((page - 1) * limit).limit(limit).all()
+
+    base_url = str(request.base_url).rstrip("/")
+    add_absolute_img_urls(products, base_url)
+
+    for product in products:
+        producer_slug = product.product_line.producer.slug
+        product.self = f"/{category_slug}/{producer_slug}/{product.slug}"
 
     return {
         "items": products,
