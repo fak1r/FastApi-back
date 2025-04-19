@@ -4,12 +4,15 @@ from fastapi import Query
 from math import ceil
 from models import Product
 
-def add_absolute_img_urls(products: list, base_url: str):
+def add_absolute_img_urls(products: list, base_url: str, field: str = "img_mini"):
     for product in products:
-        if product.img_mini:
+        if field == "img_mini" and product.img_mini:
             product.img_mini = [
                 f"{base_url}/static/uploads/minify/{img}" for img in product.img_mini
             ]
+        elif field == "images" and hasattr(product, "images") and product.images:
+            for image in product.images:
+                image.image_url = f"{base_url}/static/uploads/{image.image_url}"
 
 def paginate_and_sort_products(
     query: Query,

@@ -90,6 +90,7 @@ class ProductResponse(ProductBase):
     id: int
     images: List[ProductImageResponse] = []
     self: Optional[str] = None
+    full_name: Optional[str] = None 
 
     class Config:
         from_attributes = True

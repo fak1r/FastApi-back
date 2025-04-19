@@ -58,6 +58,7 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
     slug = Column(String, unique=True, index=True)
     product_line_id = Column(Integer, ForeignKey("product_lines.id"), nullable=False)
     price = Column(Float, nullable=False)

@@ -34,7 +34,7 @@ async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
 
         # Всё что не относится к деталям
         base_columns = {
-            "Наименование", "Цена", "Img", "Img_mini", "is_favorite", "product_line"
+            "Наименование", "Цена", "Img", "Img_mini", "is_favorite", "product_line", 'slug', "full_name"
         }
 
         existing_products = db.query(Product).all()
@@ -164,7 +164,8 @@ async def upload_products_google(sheet_url: str, db: Session = Depends(get_db)):
                     ),
                     details=details,
                     img_mini=img_mini,
-                    rating=0.0
+                    rating=0.0,
+                    full_name=row.get("full_name") 
                 )
 
                 products_to_add.append(product)
@@ -330,6 +331,7 @@ def get_product_by_slug(
     category_slug: str,
     producer_slug: str,
     product_slug: str,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     product = (
@@ -347,5 +349,8 @@ def get_product_by_slug(
 
     if not product:
         raise HTTPException(status_code=404, detail="Продукт не найден")
+
+    base_url = str(request.base_url).rstrip("/")
+    add_absolute_img_urls([product], base_url, field="images")
 
     return product
