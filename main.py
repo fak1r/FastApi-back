@@ -13,6 +13,8 @@ from database import init_db
 from routers import products, auth
 import logging
 
+ENV = os.getenv('ENV', 'development')
+
 ENABLE_RATE_LIMITER = os.getenv("ENABLE_RATE_LIMITER", "false").lower() == "true"
 SHOW_DOCS = os.getenv("SHOW_DOCS", "true").lower() == "true"
 
@@ -47,7 +49,12 @@ def startup_event():
 ALLOWED_ORIGINS = list(set(os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")))
 
 # Раздача статики
-app.mount("/static", StaticFiles(directory="static"), name="static")
+if ENV == 'production':
+    static_path = '/var/www/static'
+else:
+    static_path = os.path.join(os.path.dirname(__file__), 'static')
+
+app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # CORS для Nuxt 3
 app.add_middleware(
