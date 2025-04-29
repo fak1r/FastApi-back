@@ -6,18 +6,22 @@ from fastapi import Query
 from math import ceil
 from models import Product
 
-def add_absolute_img_urls(products: list, base_url: str, field: str = "img_mini"):
-    if os.getenv("ENV") == "production" and base_url.startswith("http://"):
-        base_url = base_url.replace("http://", "https://", 1)
+ENV = os.getenv("ENV", "development")
 
+if ENV == "production":
+    SITE_URL = os.getenv("SITE_URL", "https://zampol.ru")
+else:
+    SITE_URL = "http://localhost:8000" 
+
+def add_absolute_img_urls(products: list, field: str = "img_mini"):
     for product in products:
         if field == "img_mini" and product.img_mini:
             product.img_mini = [
-                f"{base_url}/static/uploads/minify/{img}" for img in product.img_mini
+                f"{SITE_URL}/static/uploads/minify/{img}" for img in product.img_mini
             ]
         elif field == "images" and hasattr(product, "images") and product.images:
             for image in product.images:
-                image.image_url = f"{base_url}/static/uploads/{image.image_url}"
+                image.image_url = f"{SITE_URL}/static/uploads/{image.image_url}"
 
 def paginate_and_sort_products(
     query: Query,

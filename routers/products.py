@@ -236,8 +236,7 @@ def get_popular_products(
 
     products, total, pages = paginate_and_sort_products(query, page, limit, sort_by, order)
 
-    base_url = str(request.base_url).rstrip("/")
-    add_absolute_img_urls(products, base_url)
+    add_absolute_img_urls(products)
 
     for product in products:
         category_slug = product.product_line.producer.category.slug
@@ -273,8 +272,7 @@ def get_products_by_category_slug(
 
     products, total, pages = paginate_and_sort_products(query, page, limit, sort_by, order)
 
-    base_url = str(request.base_url).rstrip("/")
-    add_absolute_img_urls(products, base_url)
+    add_absolute_img_urls(products)
 
     for product in products:
         producer_slug = product.product_line.producer.slug
@@ -312,8 +310,7 @@ def get_products_by_producer_slug(
 
     products, total, pages = paginate_and_sort_products(query, page, limit, sort_by, order)
 
-    base_url = str(request.base_url).rstrip("/")
-    add_absolute_img_urls(products, base_url)
+    add_absolute_img_urls(products)
 
     for product in products:
         product.self = f"/{category_slug}/{producer_slug}/{product.slug}"
@@ -350,7 +347,6 @@ def get_product_by_slug(
     if not product:
         raise HTTPException(status_code=404, detail="Продукт не найден")
 
-    base_url = str(request.base_url).rstrip("/")
-    add_absolute_img_urls([product], base_url, field="images")
+    add_absolute_img_urls([product], field="images")
 
     return product
