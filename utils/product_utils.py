@@ -1,3 +1,5 @@
+import os
+
 from typing import Tuple
 from sqlalchemy.orm import Query
 from fastapi import Query
@@ -5,6 +7,9 @@ from math import ceil
 from models import Product
 
 def add_absolute_img_urls(products: list, base_url: str, field: str = "img_mini"):
+    if os.getenv("ENV") == "production" and base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://", 1)
+
     for product in products:
         if field == "img_mini" and product.img_mini:
             product.img_mini = [
