@@ -292,7 +292,7 @@ def get_products_by_producer_slug(
     category_slug: str,
     producer_slug: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(12, ge=1, le=100),
+    limit: int = Query(12, ge=1, le=10000),
     sort_by: str = Query("name", pattern="^(price|name)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db),
