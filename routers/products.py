@@ -348,5 +348,6 @@ def get_product_by_slug(
         raise HTTPException(status_code=404, detail="Продукт не найден")
 
     add_absolute_img_urls([product], field="images")
+    add_absolute_img_urls([product], field="img_mini")
 
     return product
