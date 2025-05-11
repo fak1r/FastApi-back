@@ -251,6 +251,30 @@ def get_popular_products(
         "pages": pages
     }
 
+@router.get("/search", response_model=List[schemas.ProductSearchItem])
+def search_products_raw(
+    query: str = Query(..., min_length=2, description="Поисковый запрос"),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    q = query.strip()
+
+    products = (
+        db.query(Product)
+        .join(ProductLine)
+        .join(Producer)
+        .join(Category)
+        .filter(Product.full_name.ilike(f"%{q}%"))
+        .limit(limit)
+        .all()
+    )
+
+    for product in products:
+        category_slug = product.product_line.producer.category.slug
+        producer_slug = product.product_line.producer.slug
+        product.self = f"/{category_slug}/{producer_slug}/{product.slug}"
+
+    return products
 
 @router.get("/{category_slug}", response_model=schemas.PaginatedProducts)
 def get_products_by_category_slug(

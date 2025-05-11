@@ -115,5 +115,13 @@ class PaginatedProducts(BaseModel):
     limit: int
     pages: int
 
+class ProductSearchItem(BaseModel):
+    id: int
+    full_name: str
+    self: str
+
+    class Config:
+        from_attributes = True
+
 if TYPE_CHECKING:
     from schemas import ProductLineResponse, ProducerResponse, CategoryResponse
