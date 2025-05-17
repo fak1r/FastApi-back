@@ -34,6 +34,9 @@ services:
     ports:
       - "6379:6379"
     command: ["redis-server", "--replicaof", "no", "one"]
+    volumes:
+      - redis_data:/data
 
 volumes:
   postgres_data:
+  redis_data:

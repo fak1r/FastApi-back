@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from schemas import TelegramOrderRequest
 from datetime import datetime
+from fastapi_limiter.depends import RateLimiter
 import httpx
 import os
 
@@ -8,15 +9,35 @@ router = APIRouter(prefix="/order", tags=["Order"])
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ENABLE_RATE_LIMITER = os.getenv("ENABLE_RATE_LIMITER", "false").lower() == "true"
 
-@router.post("/telegram")
+if ENABLE_RATE_LIMITER:
+    from redis.asyncio import Redis
+
+    REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
+    redis = Redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+
+    async def get_next_order_number():
+        return await redis.incr("global:order_counter")
+else:
+    async def get_next_order_number():
+        return 0
+
+dependencies = [Depends(RateLimiter(times=3, seconds=60))] if ENABLE_RATE_LIMITER else []
+
+@router.post("/telegram", dependencies=dependencies)
 async def send_telegram_order(data: TelegramOrderRequest):
     if not data.items:
         raise HTTPException(status_code=400, detail="Пустой заказ")
 
-    # Формируем сообщение
+    order_number = await get_next_order_number()
     order_time = datetime.now().strftime("%d.%m.%Y %H:%M")
-    message = f"📌 *Новый заказ*\n\n📞 Клиент: `{data.phone}`\n🕒 Время: {order_time}\n\n"
+
+    message = (
+        f"📌 *Новый заказ №{order_number}*\n\n"
+        f"📞 Клиент: `{data.phone}`\n"
+        f"🕒 Время: {order_time}\n\n"
+    )
 
     total = 0
     for item in data.items:
@@ -44,4 +65,4 @@ async def send_telegram_order(data: TelegramOrderRequest):
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Не удалось отправить заказ в Telegram")
 
-    return {"success": True}
+    return {"success": True, "order_number": order_number}
