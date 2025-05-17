@@ -10,7 +10,7 @@ from fastapi_limiter.depends import RateLimiter
 import redis.asyncio as redis
 
 from database import init_db
-from routers import products, auth
+from routers import products, auth, order 
 import logging
 
 ENV = os.getenv('ENV', 'development')
@@ -68,6 +68,7 @@ app.add_middleware(
 # Подключение роутов
 app.include_router(products.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(order.router, prefix="/api")
 
 # Пинг для проверки БД
 @app.get("/ping_db")

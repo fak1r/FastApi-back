@@ -123,5 +123,15 @@ class ProductSearchItem(BaseModel):
     class Config:
         from_attributes = True
 
+class CartProduct(BaseModel):
+    id: int
+    name: str
+    quantity: int
+    price: float
+
+class TelegramOrderRequest(BaseModel):
+    phone: str
+    items: List[CartProduct]
+
 if TYPE_CHECKING:
     from schemas import ProductLineResponse, ProducerResponse, CategoryResponse
