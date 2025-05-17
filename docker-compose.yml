@@ -35,7 +35,8 @@ services:
       - "6379:6379"
     command: ["redis-server", "--replicaof", "no", "one"]
     volumes:
-      - redis_data:/data
+      redis_data:
+        name: redis_data
 
 volumes:
   postgres_data:
