@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from schemas import TelegramOrderRequest
 from datetime import datetime
 from fastapi_limiter.depends import RateLimiter
+from pytz import timezone
 import httpx
 import os
 
@@ -31,7 +32,7 @@ async def send_telegram_order(data: TelegramOrderRequest):
         raise HTTPException(status_code=400, detail="Пустой заказ")
 
     order_number = await get_next_order_number()
-    order_time = datetime.now().strftime("%d.%m.%Y %H:%M")
+    order_time = datetime.now(timezone("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
     message = (
         f"📌 *Новый заказ №{order_number}*\n\n"
