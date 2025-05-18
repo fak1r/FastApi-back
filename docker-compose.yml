@@ -35,31 +35,24 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    redis:
-  image: redis:7
-  restart: always
-  ports:
-    - "6379:6379"
-  volumes:
-    - redis_data:/data
-  command:
-    [
-      "redis-server",
-      "--replicaof",
-      "no",
-      "one",
-      "--appendonly",
-      "yes",
-      "--save",
-      "900",
-      "1",
-      "--save",
-      "300",
-      "10",
-      "--save",
-      "60",
-      "10000",
-    ]
+    command:
+      [
+        "redis-server",
+        "--replicaof",
+        "no",
+        "one",
+        "--appendonly",
+        "yes",
+        "--save",
+        "900",
+        "1",
+        "--save",
+        "300",
+        "10",
+        "--save",
+        "60",
+        "10000",
+      ]
 
 volumes:
   postgres_data:
