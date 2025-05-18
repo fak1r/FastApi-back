@@ -33,9 +33,10 @@ async def send_telegram_order(data: TelegramOrderRequest):
 
     order_number = await get_next_order_number()
     order_time = datetime.now(timezone("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
+    source_text = "Купить сейчас" if data.source == "buy_now" else "Корзина"
 
     message = (
-        f"📌 *Новый заказ №{order_number}*\n\n"
+        f"📌 *Новый заказ №{order_number}* ({source_text})\n\n"
         f"📞 Клиент: `{data.phone}`\n"
         f"🕒 Время: {order_time}\n\n"
     )

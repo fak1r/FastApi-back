@@ -373,5 +373,7 @@ def get_product_by_slug(
 
     add_absolute_img_urls([product], field="images")
     add_absolute_img_urls([product], field="img_mini")
+    
+    product.self = f"/{category_slug}/{producer_slug}/{product_slug}"
 
     return product

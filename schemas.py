@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, HttpUrl
-from typing import List, Optional, Dict, TYPE_CHECKING
+from typing import List, Optional, Dict, TYPE_CHECKING, Literal
 
 class UserResponse(BaseModel):
     email: EmailStr
@@ -131,6 +131,7 @@ class CartProduct(BaseModel):
 
 class TelegramOrderRequest(BaseModel):
     phone: str
+    source: Literal["buy_now", "cart"]
     items: List[CartProduct]
 
 if TYPE_CHECKING:
