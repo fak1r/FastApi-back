@@ -38,9 +38,6 @@ services:
     command:
       [
         "redis-server",
-        "--replicaof",
-        "no",
-        "one",
         "--appendonly",
         "yes",
         "--save",
