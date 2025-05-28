@@ -26,18 +26,7 @@ services:
       - /var/www/static:/var/www/static
     depends_on:
       - postgres
-    command:
-      [
-        "uvicorn",
-        "main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--replicaof",
-        "no",
-        "one",
-      ]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
   redis:
     image: redis:7
@@ -60,6 +49,9 @@ services:
         "--save",
         "60",
         "10000",
+        "--replicaof",
+        "no",
+        "one",
       ]
 
 volumes:
