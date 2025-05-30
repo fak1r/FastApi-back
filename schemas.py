@@ -125,7 +125,7 @@ class ProductSearchItem(BaseModel):
 
 class CartProduct(BaseModel):
     id: int
-    name: str
+    full_name: str
     quantity: int
     price: float
 
