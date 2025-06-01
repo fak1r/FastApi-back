@@ -376,4 +376,21 @@ def get_product_by_slug(
     
     product.self = f"/{category_slug}/{producer_slug}/{product_slug}"
 
+    breadcrumbs = [
+        {
+            "label": product.product_line.producer.category.name,
+            "to": f"/{product.product_line.producer.category.slug}",
+        },
+        {
+            "label": product.product_line.producer.name,
+            "to": f"/{product.product_line.producer.category.slug}/{product.product_line.producer.slug}",
+        },
+        {
+            "label": f"{product.product_line.name} {product.name}",
+            "to": f"/{product.product_line.producer.category.slug}/{product.product_line.producer.slug}/{product.slug}",
+        }
+    ]
+
+    product.breadcrumbs = breadcrumbs
+
     return product

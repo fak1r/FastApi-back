@@ -86,11 +86,16 @@ class ProductImageResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BreadcrumbItem(BaseModel):
+    label: str
+    to: str
+    
 class ProductResponse(ProductBase):
     id: int
     images: List[ProductImageResponse] = []
     self: Optional[str] = None
     full_name: Optional[str] = None 
+    breadcrumbs: List[BreadcrumbItem] = []
 
     class Config:
         from_attributes = True
@@ -133,6 +138,8 @@ class TelegramOrderRequest(BaseModel):
     phone: str
     source: Literal["buy_now", "cart"]
     items: List[CartProduct]
+
+
 
 if TYPE_CHECKING:
     from schemas import ProductLineResponse, ProducerResponse, CategoryResponse
