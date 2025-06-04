@@ -394,3 +394,48 @@ def get_product_by_slug(
     product.breadcrumbs = breadcrumbs
 
     return product
+
+@router.get("/{category_slug}/{producer_slug}/{product_slug}/related")
+def get_related_products(
+    category_slug: str,
+    producer_slug: str,
+    product_slug: str,
+    db: Session = Depends(get_db),
+):
+    product = (
+        db.query(Product)
+        .join(ProductLine)
+        .join(Producer)
+        .join(Category)
+        .filter(
+            Product.slug == product_slug,
+            Producer.slug == producer_slug,
+            Category.slug == category_slug,
+        )
+        .first()
+    )
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Продукт не найден")
+
+    related_products = (
+        db.query(Product)
+        .filter(
+            Product.product_line_id == product.product_line_id,
+            Product.id != product.id
+        )
+        .limit(10)
+        .all()
+    )
+
+    add_absolute_img_urls(related_products)
+
+    for p in related_products:
+        category_slug = p.product_line.producer.category.slug
+        producer_slug = p.product_line.producer.slug
+        p.self = f"/{category_slug}/{producer_slug}/{p.slug}"
+
+    return {
+        "collection_name": product.product_line.name,
+        "items": related_products
+    }
