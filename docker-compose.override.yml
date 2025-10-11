@@ -1,0 +1,7 @@
+version: "3.8"
+
+services:
+  redis:
+    command: ["redis-server", "--appendonly", "no"]
+    volumes:
+      - redis_data:/data
